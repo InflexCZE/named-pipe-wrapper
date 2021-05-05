@@ -114,34 +114,34 @@ namespace NamedPipeWrapper
 
         #region Wait for connection/disconnection
 
-        public void WaitForConnection()
+        public bool WaitForConnection()
         {
-            _connected.WaitOne();
+            return _connected.WaitOne();
         }
 
-        public void WaitForConnection(int millisecondsTimeout)
+        public bool WaitForConnection(int millisecondsTimeout)
         {
-            _connected.WaitOne(millisecondsTimeout);
+            return _connected.WaitOne(millisecondsTimeout);
         }
 
-        public void WaitForConnection(TimeSpan timeout)
+        public bool WaitForConnection(TimeSpan timeout)
         {
-            _connected.WaitOne(timeout);
+            return _connected.WaitOne(timeout);
         }
 
-        public void WaitForDisconnection()
+        public bool WaitForDisconnection()
         {
-            _disconnected.WaitOne();
+            return _disconnected.WaitOne();
         }
 
-        public void WaitForDisconnection(int millisecondsTimeout)
+        public bool WaitForDisconnection(int millisecondsTimeout)
         {
-            _disconnected.WaitOne(millisecondsTimeout);
+            return _disconnected.WaitOne(millisecondsTimeout);
         }
 
-        public void WaitForDisconnection(TimeSpan timeout)
+        public bool WaitForDisconnection(TimeSpan timeout)
         {
-            _disconnected.WaitOne(timeout);
+            return _disconnected.WaitOne(timeout);
         }
 
         #endregion
