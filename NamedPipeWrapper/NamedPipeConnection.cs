@@ -52,11 +52,7 @@ namespace NamedPipeWrapper
 
         private readonly PipeStreamWrapper<TRead, TWrite> _streamWrapper;
 
-        private readonly AutoResetEvent _writeSignal = new AutoResetEvent(false);
-        /// <summary>
-        /// To support Multithread, we should use BlockingCollection.
-        /// </summary>
-        private readonly BlockingCollection<TWrite> _writeQueue = new BlockingCollection<TWrite>();
+        private readonly BlockingCollection<object> _writeQueue = new BlockingCollection<object>();
 
         private bool _notifiedSucceeded;
 
@@ -73,6 +69,9 @@ namespace NamedPipeWrapper
         /// </summary>
         public void Open()
         {
+            //Drop stale messages
+            while(_writeQueue.TryTake(out _));
+
             var readWorker = new Worker();
             readWorker.Succeeded += OnSucceeded;
             readWorker.Error += OnError;
@@ -93,7 +92,6 @@ namespace NamedPipeWrapper
         public void PushMessage(TWrite message)
         {
             _writeQueue.Add(message);
-            _writeSignal.Set();
         }
 
         /// <summary>
@@ -109,8 +107,16 @@ namespace NamedPipeWrapper
         /// </summary>
         private void CloseImpl()
         {
+            //Pushing known reference to write queue will wake up the writer and free it
+            _writeQueue.Add(_writeQueue);
+
+            var sw = new SpinWait();
+            while(_writeQueue.Count > 0 && IsConnected && _streamWrapper.CanWrite)
+            {
+                sw.SpinOnce();
+            }
+            
             _streamWrapper.Close();
-            _writeSignal.Set();
         }
 
         /// <summary>
@@ -172,21 +178,21 @@ namespace NamedPipeWrapper
         /// <exception cref="SerializationException">An object in the graph of type parameter <typeparamref name="TWrite"/> is not marked as serializable.</exception>
         private void WritePipe()
         {
-            
-                while (IsConnected && _streamWrapper.CanWrite)
+            while (IsConnected && _streamWrapper.CanWrite)
+            {
+                try
                 {
-                    try
+                    var data = _writeQueue.Take();
+                    if(ReferenceEquals(data, _writeQueue))
                     {
-                        //using blockcollection, we needn't use singal to wait for result.
-                        //_writeSignal.WaitOne();
-                        //while (_writeQueue.Count > 0)
-                        {
-                            _streamWrapper.WriteObject(_writeQueue.Take());
-                            _streamWrapper.WaitForPipeDrain();
-                        }
+                        return;
                     }
-                    catch
-                    {
+
+                    _streamWrapper.WriteObject((TWrite) data);
+                    _streamWrapper.WaitForPipeDrain();
+                }
+                catch
+                {
                     //we must igonre exception, otherwise, the namepipe wrapper will stop work.
                 }
             }
